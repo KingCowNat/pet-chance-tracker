@@ -19,7 +19,7 @@ public class PetChanceTrackerPanel extends PluginPanel {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel title = new JLabel("Log Counts");
+        JLabel title = new JLabel("Tree Counts");
         title.setFont(FontManager.getRunescapeBoldFont());
         title.setHorizontalAlignment(SwingConstants.CENTER);
 
@@ -37,7 +37,7 @@ public class PetChanceTrackerPanel extends PluginPanel {
         for (Woodcutting.TreeType type : Woodcutting.TreeType.values()) {
             int count = totals.getOrDefault(type, 0);
 
-            countsContainer.add(new JLabel(formatLogName(type)));
+            countsContainer.add(new JLabel(formatTreeName(type)));
             countsContainer.add(new JLabel(String.valueOf(count)));
         }
 
@@ -45,7 +45,7 @@ public class PetChanceTrackerPanel extends PluginPanel {
         repaint();
     }
 
-    private String formatLogName(Woodcutting.TreeType type) {
+    private String formatTreeName(Woodcutting.TreeType type) {
         String name = type.name().replace('_', ' ').toLowerCase();
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }

@@ -3,6 +3,8 @@ package com.petchancetracker;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.Map;
 import javax.inject.Inject;
 import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
@@ -40,12 +42,12 @@ class PetChanceTrackerOverlay extends OverlayPanel {
 
         Woodcutting woodcutting = plugin.getWoodcutting();
         double probability = woodcutting.getProbability();
+        NumberFormat formatter = new DecimalFormat("#0.00000");
 
         panelComponent.getChildren().add(TitleComponent.builder()
-                .text(String.valueOf(Math.round(probability * 100000.0) / 100000.0) + "%")
+                .text(String.valueOf(formatter.format(Math.round(probability * 100000.0) / 100000.0)) + "%")
                 .color(Color.YELLOW)
                 .build());
-
 
         Map<Woodcutting.TreeType, Integer> totals = woodcutting.getTotalCounts();
 
@@ -57,17 +59,15 @@ class PetChanceTrackerOverlay extends OverlayPanel {
             }
 
             panelComponent.getChildren().add(LineComponent.builder()
-                    .left(formatLogName(type))
+                    .left(formatTreeName(type))
                     .right(String.valueOf(count))
                     .build());
         }
 
-
-
         return super.render(graphics);
     }
 
-    private String formatLogName(Woodcutting.TreeType type) {
+    private String formatTreeName(Woodcutting.TreeType type) {
         String name = type.name().replace('_', ' ').toLowerCase();
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
