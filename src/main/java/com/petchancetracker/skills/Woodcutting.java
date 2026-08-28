@@ -151,7 +151,7 @@ public class Woodcutting {
     }
 
     public double getProbability() {
-        double probablity = 0;
+        double probability = 0;
 
         for (Map.Entry<Integer, Map<LogType, Integer>> levelEntry : countsByLevel.entrySet()) {
             int level = levelEntry.getKey();
@@ -165,11 +165,11 @@ public class Woodcutting {
                 double perLogChance = 1.0 / (baseDropRate - level * 25);
                 double chanceAtLevel = 1 - Math.pow(1 - perLogChance, count);
 
-                probablity = 1 - (1 - probablity) * (1 - chanceAtLevel);
+                probability = 1 - (1 - probability) * (1 - chanceAtLevel);
             }
         }
 
-        return probablity;
+        return probability;
     }
 
     public void reset() {
