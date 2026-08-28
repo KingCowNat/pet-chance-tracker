@@ -47,9 +47,9 @@ class PetChanceTrackerOverlay extends OverlayPanel {
                 .build());
 
 
-        Map<Woodcutting.LogType, Integer> totals = woodcutting.getTotalCounts();
+        Map<Woodcutting.TreeType, Integer> totals = woodcutting.getTotalCounts();
 
-        for (Woodcutting.LogType type: Woodcutting.LogType.values()) {
+        for (Woodcutting.TreeType type: Woodcutting.TreeType.values()) {
             int count = totals.getOrDefault(type, 0);
 
             if (count == 0) {
@@ -67,7 +67,7 @@ class PetChanceTrackerOverlay extends OverlayPanel {
         return super.render(graphics);
     }
 
-    private String formatLogName(Woodcutting.LogType type) {
+    private String formatLogName(Woodcutting.TreeType type) {
         String name = type.name().replace('_', ' ').toLowerCase();
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }

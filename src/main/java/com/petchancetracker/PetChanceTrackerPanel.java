@@ -32,9 +32,9 @@ public class PetChanceTrackerPanel extends PluginPanel {
     public void refresh() {
         countsContainer.removeAll();
 
-        Map<Woodcutting.LogType, Integer> totals = woodcutting.getTotalCounts();
+        Map<Woodcutting.TreeType, Integer> totals = woodcutting.getTotalCounts();
 
-        for (Woodcutting.LogType type : Woodcutting.LogType.values()) {
+        for (Woodcutting.TreeType type : Woodcutting.TreeType.values()) {
             int count = totals.getOrDefault(type, 0);
 
             countsContainer.add(new JLabel(formatLogName(type)));
@@ -45,7 +45,7 @@ public class PetChanceTrackerPanel extends PluginPanel {
         repaint();
     }
 
-    private String formatLogName(Woodcutting.LogType type) {
+    private String formatLogName(Woodcutting.TreeType type) {
         String name = type.name().replace('_', ' ').toLowerCase();
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }

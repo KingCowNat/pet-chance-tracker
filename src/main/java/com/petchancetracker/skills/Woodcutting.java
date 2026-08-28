@@ -28,16 +28,16 @@ public class Woodcutting {
 
     private static final Pattern LOG_CUT_PATTERN = Pattern.compile("You get (?:some|an) ([\\w ]+?)\\.");
 
-    public enum LogType {
+    public enum TreeType {
         NORMAL_LOGS,
         OAK_LOGS,
         WILLOW_LOGS
     }
 
-    private static final Map<LogType, Integer> DROP_RATES = Map.of(
-            LogType.NORMAL_LOGS, 317647,
-            LogType.OAK_LOGS, 361146,
-            LogType.WILLOW_LOGS, 289286
+    private static final Map<TreeType, Integer> DROP_RATES = Map.of(
+            TreeType.NORMAL_LOGS, 317647,
+            TreeType.OAK_LOGS, 361146,
+            TreeType.WILLOW_LOGS, 289286
     );
 
     @Inject
@@ -68,12 +68,12 @@ public class Woodcutting {
         }
     }
 
-    private final Map<Integer, Map<LogType, Integer>> countsByLevel = new TreeMap<>();
+    private final Map<Integer, Map<TreeType, Integer>> countsByLevel = new TreeMap<>();
 
-    private static final Map<String, LogType> ITEM_LOOKUP = Map.of(
-            "logs", LogType.NORMAL_LOGS,
-            "oak logs", LogType.OAK_LOGS,
-            "willow logs", LogType.WILLOW_LOGS
+    private static final Map<String, TreeType> ITEM_LOOKUP = Map.of(
+            "logs", TreeType.NORMAL_LOGS,
+            "oak logs", TreeType.OAK_LOGS,
+            "willow logs", TreeType.WILLOW_LOGS
     );
 
     public void loadCounts() {
@@ -86,10 +86,10 @@ public class Woodcutting {
             return;
         }
 
-        Type type = new TypeToken<Map<Integer, Map<LogType, Integer>>>() {}.getType();
+        Type type = new TypeToken<Map<Integer, Map<TreeType, Integer>>>() {}.getType();
 
         try {
-            Map<Integer, Map<LogType, Integer>> saved = gson.fromJson(json, type);
+            Map<Integer, Map<TreeType, Integer>> saved = gson.fromJson(json, type);
             log.debug("loadCounts: profile={}, saved={}", configManager.getRSProfileKey(), saved);
             if (saved != null) {
                 countsByLevel.putAll(saved);
@@ -119,26 +119,26 @@ public class Woodcutting {
         }
 
         String item = matcher.group(1).trim().toLowerCase();
-        LogType logType = ITEM_LOOKUP.get(item);
+        TreeType TreeType = ITEM_LOOKUP.get(item);
 
-        if (logType == null) {
+        if (TreeType == null) {
             return;
         }
 
         int level = client.getRealSkillLevel(Skill.WOODCUTTING);
 
-        Map<LogType, Integer> levelCounts = countsByLevel.computeIfAbsent(level, k -> new EnumMap<>(LogType.class));
-        levelCounts.merge(logType, 1, Integer::sum);
+        Map<TreeType, Integer> levelCounts = countsByLevel.computeIfAbsent(level, k -> new EnumMap<>(TreeType.class));
+        levelCounts.merge(TreeType, 1, Integer::sum);
 
         saveCounts();
         notifyListeners();
     }
 
-    public Map<LogType, Integer> getTotalCounts() {
-        Map<LogType, Integer> totals = new EnumMap<>(LogType.class);
+    public Map<TreeType, Integer> getTotalCounts() {
+        Map<TreeType, Integer> totals = new EnumMap<>(TreeType.class);
 
-        for (Map<LogType, Integer> logCounts : countsByLevel.values()) {
-            for (Map.Entry<LogType, Integer> entry : logCounts.entrySet()) {
+        for (Map<TreeType, Integer> logCounts : countsByLevel.values()) {
+            for (Map.Entry<TreeType, Integer> entry : logCounts.entrySet()) {
                 totals.merge(entry.getKey(), entry.getValue(), Integer::sum);
             }
         }
@@ -146,19 +146,19 @@ public class Woodcutting {
         return totals;
     }
 
-    public int getTotalCount(LogType type) {
+    public int getTotalCount(TreeType type) {
         return getTotalCounts().getOrDefault(type, 0);
     }
 
     public double getProbability() {
         double probability = 0;
 
-        for (Map.Entry<Integer, Map<LogType, Integer>> levelEntry : countsByLevel.entrySet()) {
+        for (Map.Entry<Integer, Map<TreeType, Integer>> levelEntry : countsByLevel.entrySet()) {
             int level = levelEntry.getKey();
-            Map<LogType, Integer> logCounts = levelEntry.getValue();
+            Map<TreeType, Integer> logCounts = levelEntry.getValue();
 
-            for (Map.Entry<LogType, Integer> logEntry : logCounts.entrySet()) {
-                LogType type = logEntry.getKey();
+            for (Map.Entry<TreeType, Integer> logEntry : logCounts.entrySet()) {
+                TreeType type = logEntry.getKey();
                 int count = logEntry.getValue();
                 int baseDropRate = DROP_RATES.get(type);
 
