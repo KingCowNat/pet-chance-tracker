@@ -7,7 +7,7 @@ import net.runelite.client.config.ConfigItem;
 @ConfigGroup("example")
 public interface PetChanceTrackerConfig extends Config
 {
-	@ConfigItem(
+	/*@ConfigItem(
 		keyName = "greeting",
 		name = "Welcome Greeting",
 		description = "The message to show to the user when they login"
@@ -15,5 +15,5 @@ public interface PetChanceTrackerConfig extends Config
 	default String greeting()
 	{
 		return "Hello";
-	}
+	}*/
 }

@@ -96,6 +96,7 @@ public class PetChanceTrackerPlugin extends Plugin
 		overlayManager.remove(overlay);
 	}
 
+	/*
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
@@ -103,7 +104,7 @@ public class PetChanceTrackerPlugin extends Plugin
 		{
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
 		}
-	}
+	}*/
 
 	@Provides
 	PetChanceTrackerConfig provideConfig(ConfigManager configManager)
