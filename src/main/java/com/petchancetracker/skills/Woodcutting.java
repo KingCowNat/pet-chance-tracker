@@ -23,27 +23,8 @@ import static java.util.Map.entry;
 
 @Slf4j
 public class Woodcutting {
-    // Count listener to update side panel
-    public interface CountsChangedListener {
-        void onCountsChanged();
-    }
-
-    private final List<CountsChangedListener> listeners = new ArrayList<>();
-
-    public void addCountsChangedListener(CountsChangedListener listener) {
-        listeners.add(listener);
-    }
-
-    private void notifyListeners() {
-        for (CountsChangedListener listener : listeners) {
-            listener.onCountsChanged();
-        }
-    }
-
     private static final String CONFIG_GROUP = "petchancetracker";
     private static final String CONFIG_KEY = "woodcuttingCountsByLevel";
-
-    private static final Pattern LOG_CUT_PATTERN = Pattern.compile("You get (?:some|an) ([\\w ]+?)\\.");
 
     // Regex to find the target of the MenuOptionClicked event
     private static final Pattern TARGET_TREE_PATTERN = Pattern.compile("^<col=[a-fA-F0-9]+>(.*?)$");
@@ -98,26 +79,6 @@ public class Woodcutting {
             entry(TreeType.YEW_TREE, 145013)
     );
 
-    @Inject
-    private Client client;
-
-    @Inject
-    private ConfigManager configManager;
-
-    @Inject
-    private Gson gson;
-
-    @Subscribe
-    public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
-        log.debug("onRuneScapeProfileChanged fired, profile={}", configManager.getRSProfileKey());
-        getWoodcuttingXp();
-        loadCounts();
-        notifyListeners();
-    }
-
-    // Count of eligible rolls for each tree type per level
-    private final Map<Integer, Map<TreeType, Integer>> countsByLevel = new TreeMap<>();
-
     // Lookup map to match target object to source enum
     private static final Map<String, TreeType> ITEM_LOOKUP = Map.ofEntries(
             entry("achey tree", TreeType.ACHEY_TREE),
@@ -143,43 +104,6 @@ public class Woodcutting {
             entry("yew tree", TreeType.YEW_TREE)
     );
 
-    private boolean isAcheyTree = false;
-
-    /**
-     * Loads a count of all eligible rolls for each tree type per level
-     */
-    public void loadCounts() {
-        countsByLevel.clear();
-
-        String json = configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY);
-        log.debug("Raw stored value for {}: {}", CONFIG_KEY, json);
-
-        if (json == null || json.isEmpty()) {
-            return;
-        }
-
-        Type type = new TypeToken<Map<Integer, Map<TreeType, Integer>>>() {}.getType();
-
-        try {
-            Map<Integer, Map<TreeType, Integer>> saved = gson.fromJson(json, type);
-            log.debug("loadCounts: profile={}, saved={}", configManager.getRSProfileKey(), saved);
-            if (saved != null) {
-                countsByLevel.putAll(saved);
-            }
-        } catch (ClassCastException e) {
-            log.warn("Failed to load woodcutting counts, resetting", e);
-        }
-    }
-
-    /**
-     * Saves a count of all eligible rolls for each tree type per level
-     */
-    public void saveCounts() {
-        String json = gson.toJson(countsByLevel);
-        configManager.setRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY, json);
-        log.debug("saveCounts: profile={}, json={}", configManager.getRSProfileKey(), json);
-    }
-
     // Ineligible regions
     private static final Set<Integer> INELIGIBLE_REGIONS = Set.of(
             6462,   // Wintertodt
@@ -192,25 +116,41 @@ public class Woodcutting {
     );
 
     // Kharazi Jungle entrance
-    WorldArea ineligibleArea = new WorldArea(2752, 2933, 204, 11, 0);
+    private final WorldArea ineligibleArea = new WorldArea(2752, 2933, 204, 11, 0);
+
+    // Count listener to update side panel
+    public interface CountsChangedListener {
+        void onCountsChanged();
+    }
+    private final List<CountsChangedListener> listeners = new ArrayList<>();
+
+    // Count of eligible rolls for each tree type per level
+    private final Map<Integer, Map<TreeType, Integer>> countsByLevel = new TreeMap<>();
+
+    private int initialXp; // xp before the current action, used to detect stat changes
+    private TreeType treeType; // current target of the action, set by onMenuOptionClicked
+
+    @Inject
+    private Client client;
+
+    @Inject
+    private ConfigManager configManager;
+
+    @Inject
+    private Gson gson;
 
     /**
-     * Checks to see if the tree is located in an eligible place to receive a pet roll.
-     * @return {@link boolean}
+     * Uses the {@link RuneScapeProfileChanged} event to load the player's experience and eligible roll counts that
+     * persist between sessions
+     * @param event An event when the user switches to a different RuneScape save profile. This might be because
+     *              they logged into a different account, or hopped to/from a Beta/Tournament/DMM/Leagues world.
      */
-    public boolean isEligibleForPetRoll() {
-        // Player location
-        WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
-        int regionId = playerLocation.getRegionID();
-
-        return !(INELIGIBLE_REGIONS.contains(regionId) || playerLocation.isInArea(ineligibleArea));
-    }
-
-    // Initial woodcutting xp before action
-    int initialXp;
-
-    private void getWoodcuttingXp() {
-        initialXp = client.getSkillExperience(Skill.WOODCUTTING);
+    @Subscribe
+    public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
+        log.debug("onRuneScapeProfileChanged fired, profile={}", configManager.getRSProfileKey());
+        getWoodcuttingXp();
+        loadCounts();
+        notifyListeners();
     }
 
     /**
@@ -252,8 +192,6 @@ public class Woodcutting {
         notifyListeners();
     }
 
-    TreeType treeType;
-
     /**
      * Uses interactions with an object to determine what tree type is being chopped.
      * @param event Any left click interaction.
@@ -271,101 +209,60 @@ public class Woodcutting {
         String objectString = event.getMenuTarget();
         log.debug("Menu target: {}", objectString);
 
-        Matcher matcher = TARGET_TREE_PATTERN.matcher(event.getMenuTarget());
+        Matcher matcher = TARGET_TREE_PATTERN.matcher(objectString);
         if (!matcher.find()) {
             return;
         }
 
         String target = matcher.group(1).trim().toLowerCase();
         treeType = ITEM_LOOKUP.get(target);
-
-        /*
-        if (treeType == null) {
-            return;
-        }
-
-        log.debug("{} Poggers", treeType);
-
-
-
-        int level = client.getRealSkillLevel(Skill.WOODCUTTING);
-
-        Map<TreeType, Integer> levelCounts = countsByLevel.computeIfAbsent(level, k -> new EnumMap<>(TreeType.class));
-        levelCounts.merge(treeType, 1, Integer::sum);
-
-        saveCounts();
-        notifyListeners();
-
-        if () {//objectId == 2023) {
-            isAcheyTree = true;
-        }*/
     }
 
-    // Bloodwood trees
-    //Regular bloodwood on animation, engorged on chop option
-
     /**
-     * Uses the chat message of successfully chopping a tree to track eligible pet rolls
-     *
-     * @param event Chat message event
+     * Loads a count of all eligible rolls for each tree type per level
      */
-    /*@Subscribe
-    public void onChatMessage(ChatMessage event) {
-        if (event.getType() != ChatMessageType.SPAM
-                && event.getType() != ChatMessageType.GAMEMESSAGE
-                && event.getType() != ChatMessageType.MESBOX) {
+    public void loadCounts() {
+        countsByLevel.clear();
+
+        String json = configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY);
+        log.debug("Raw stored value for {}: {}", CONFIG_KEY, json);
+
+        if (json == null || json.isEmpty()) {
             return;
         }
 
-        if (!isEligibleForPetRoll()) {
-            return;
-        }
+        Type type = new TypeToken<Map<Integer, Map<TreeType, Integer>>>() {}.getType();
 
-        // Regex matching to determine which tree tier was rolled against
-        Matcher matcher = LOG_CUT_PATTERN.matcher(event.getMessage());
-        if (!matcher.find()) {
-            return;
-        }
-
-        String item = matcher.group(1).trim().toLowerCase();
-        TreeType treeType;
-        if (item.equals("logs") && isAcheyTree) {
-            treeType = TreeType.ACHEY_TREE;
-        } else {
-            treeType = ITEM_LOOKUP.get(item);
-        }
-
-        if (treeType == null) {
-            return;
-        }
-
-        int level = client.getRealSkillLevel(Skill.WOODCUTTING);
-
-        Map<TreeType, Integer> levelCounts = countsByLevel.computeIfAbsent(level, k -> new EnumMap<>(TreeType.class));
-        levelCounts.merge(treeType, 1, Integer::sum);
-
-        saveCounts();
-        notifyListeners();
-    }*/
-
-    /**
-     * Gets a total count of eligible pet rolls for each tree type.
-     * @return A map of counts for each type of tree.
-     */
-    public Map<TreeType, Integer> getTotalCounts() {
-        Map<TreeType, Integer> totals = new EnumMap<>(TreeType.class);
-
-        for (Map<TreeType, Integer> treeCounts : countsByLevel.values()) {
-            for (Map.Entry<TreeType, Integer> entry : treeCounts.entrySet()) {
-                totals.merge(entry.getKey(), entry.getValue(), Integer::sum);
+        try {
+            Map<Integer, Map<TreeType, Integer>> saved = gson.fromJson(json, type);
+            log.debug("loadCounts: profile={}, saved={}", configManager.getRSProfileKey(), saved);
+            if (saved != null) {
+                countsByLevel.putAll(saved);
             }
+        } catch (ClassCastException e) {
+            log.warn("Failed to load woodcutting counts, resetting", e);
         }
-
-        return totals;
     }
 
-    public int getTotalCount(TreeType type) {
-        return getTotalCounts().getOrDefault(type, 0);
+    /**
+     * Saves a count of all eligible rolls for each tree type per level
+     */
+    public void saveCounts() {
+        String json = gson.toJson(countsByLevel);
+        configManager.setRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY, json);
+        log.debug("saveCounts: profile={}, json={}", configManager.getRSProfileKey(), json);
+    }
+
+    /**
+     * Checks to see if the tree is located in an eligible place to receive a pet roll.
+     * @return boolean
+     */
+    public boolean isEligibleForPetRoll() {
+        // Player location
+        WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+        int regionId = playerLocation.getRegionID();
+
+        return !(INELIGIBLE_REGIONS.contains(regionId) || playerLocation.isInArea(ineligibleArea));
     }
 
     /**
@@ -394,9 +291,49 @@ public class Woodcutting {
         return probability;
     }
 
+    /**
+     * Gets a total count of eligible pet rolls for each tree type.
+     * @return A map of counts for each type of tree.
+     */
+    public Map<TreeType, Integer> getTotalCounts() {
+        Map<TreeType, Integer> totals = new EnumMap<>(TreeType.class);
+
+        for (Map<TreeType, Integer> treeCounts : countsByLevel.values()) {
+            for (Map.Entry<TreeType, Integer> entry : treeCounts.entrySet()) {
+                totals.merge(entry.getKey(), entry.getValue(), Integer::sum);
+            }
+        }
+
+        return totals;
+    }
+
+    public void addCountsChangedListener(CountsChangedListener listener) {
+        listeners.add(listener);
+    }
+
+    public int getTotalCount(TreeType type) {
+        int total = 0;
+
+        for (Map<TreeType, Integer> treeCounts : countsByLevel.values()) {
+            total += treeCounts.getOrDefault(type, 0);
+        }
+
+        return total;
+    }
+
     public void reset() {
         countsByLevel.clear();
         saveCounts();
         notifyListeners();
+    }
+
+    private void getWoodcuttingXp() {
+        initialXp = client.getSkillExperience(Skill.WOODCUTTING);
+    }
+
+    private void notifyListeners() {
+        for (CountsChangedListener listener : listeners) {
+            listener.onCountsChanged();
+        }
     }
 }
