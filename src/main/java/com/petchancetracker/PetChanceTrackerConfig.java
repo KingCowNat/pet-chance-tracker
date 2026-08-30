@@ -1,19 +1,35 @@
 package com.petchancetracker;
 
+import com.petchancetracker.utils.SkillType;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("example")
+@ConfigGroup("petchancetracker")
 public interface PetChanceTrackerConfig extends Config
 {
-	/*@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
-	)
-	default String greeting()
-	{
-		return "Hello";
-	}*/
+    enum OverlaySkillMode {
+        AUTO,
+        MANUAL
+    }
+
+    @ConfigItem(
+            keyName = "overlaySkillMode",
+            name = "Overlay skill mode",
+            description = "Auto: shows whichever skill you last trained. Manual: always shows the skill selected below.",
+            position = 0
+    )
+    default OverlaySkillMode overlaySkillMode() {
+        return OverlaySkillMode.AUTO;
+    }
+
+    @ConfigItem(
+            keyName = "manualOverlaySkill",
+            name = "Manual overlay skill",
+            description = "Which skill to display when the mode above is set to Manual.",
+            position = 1
+    )
+    default SkillType manualOverlaySkill() {
+        return SkillType.FISHING;
+    }
 }
