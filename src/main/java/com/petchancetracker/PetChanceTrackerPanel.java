@@ -1,52 +1,72 @@
 package com.petchancetracker;
 
-import com.petchancetracker.skills.Woodcutting;
+import com.petchancetracker.skills.*;
+import com.petchancetracker.utils.PetRollTrackable;
+import com.petchancetracker.utils.SkillType;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.ui.FontManager;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class PetChanceTrackerPanel extends PluginPanel {
 
-    private final Woodcutting woodcutting;
-    private final JPanel countsContainer = new JPanel();
+    private final List<PetRollTrackable> skills;
 
-    public PetChanceTrackerPanel(Woodcutting woodcutting) {
-        this.woodcutting = woodcutting;
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel cardContainer = new JPanel(cardLayout);
+
+    private final Map<SkillType, JPanel> countsContainers = new LinkedHashMap<>();
+
+    public PetChanceTrackerPanel(List<PetRollTrackable> skills) {
+        this.skills = skills;
 
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel title = new JLabel("Tree Counts");
-        title.setFont(FontManager.getRunescapeBoldFont());
-        title.setHorizontalAlignment(SwingConstants.CENTER);
+        SkillType[] skillTypes = skills.stream()
+                .map(PetRollTrackable::getSkillType)
+                .toArray(SkillType[]::new);
 
-        countsContainer.setLayout(new GridLayout(0, 2, 5, 5));
+        JComboBox<SkillType> skillSelector = new JComboBox<>(skillTypes);
+        skillSelector.addActionListener(e ->
+                cardLayout.show(cardContainer, ((SkillType) skillSelector.getSelectedItem()).name()));
 
-        add(title, BorderLayout.NORTH);
-        add(countsContainer, BorderLayout.CENTER);
+        for (PetRollTrackable skill : skills) {
+            JPanel container = new JPanel(new GridLayout(0, 2, 5, 5));
+            JScrollPane scrollPane = new JScrollPane(container);
+            scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+            cardContainer.add(scrollPane, skill.getSkillType().name());
+
+            countsContainers.put(skill.getSkillType(), container);
+        }
+
+        add(skillSelector, BorderLayout.NORTH);
+        add(cardContainer, BorderLayout.CENTER);
     }
 
     public void refresh() {
-        countsContainer.removeAll();
+        for (PetRollTrackable skill : skills) {
+            JPanel container = countsContainers.get(skill.getSkillType());
+            if (container == null) { continue; }
 
-        Map<Woodcutting.TreeType, Integer> totals = woodcutting.getTotalCounts();
+            Map<String, Integer> formatted = skill.getFormattedTotalCounts();
+            log.debug("refresh: skill={}, entries={}", skill.getSkillType(), formatted);
 
-        for (Woodcutting.TreeType type : Woodcutting.TreeType.values()) {
-            int count = totals.getOrDefault(type, 0);
+            container.removeAll();
 
-            countsContainer.add(new JLabel(formatTreeName(type)));
-            countsContainer.add(new JLabel(String.valueOf(count)));
+            for (Map.Entry<String, Integer> entry : formatted.entrySet()) {
+                container.add(new JLabel(entry.getKey()));
+                container.add(new JLabel(String.valueOf(entry.getValue())));
+            }
+
+            container.revalidate();
+            container.repaint();
         }
-
-        revalidate();
-        repaint();
-    }
-
-    private String formatTreeName(Woodcutting.TreeType type) {
-        String name = type.name().replace('_', ' ').toLowerCase();
-        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 }

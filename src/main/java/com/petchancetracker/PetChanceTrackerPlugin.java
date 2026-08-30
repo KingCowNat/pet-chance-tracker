@@ -4,16 +4,11 @@ import com.google.inject.Provides;
 import javax.inject.Inject;
 import javax.swing.*;
 
-import com.petchancetracker.skills.Woodcutting;
-import lombok.Getter;
+import com.petchancetracker.skills.*;
+import com.petchancetracker.utils.PetRollTrackable;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -22,6 +17,8 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @PluginDescriptor(
@@ -29,12 +26,6 @@ import java.awt.image.BufferedImage;
 )
 public class PetChanceTrackerPlugin extends Plugin
 {
-	@Inject
-	private Client client;
-
-	@Inject
-	private PetChanceTrackerConfig config;
-
 	@Inject
 	private EventBus eventBus;
 
@@ -47,9 +38,11 @@ public class PetChanceTrackerPlugin extends Plugin
 	@Inject
 	private ClientToolbar clientToolbar;
 
-	@Getter
     @Inject
 	private Woodcutting woodcutting;
+
+	@Inject
+	private Fishing fishing;
 
 	@Inject
 	private ConfigManager configManager;
@@ -57,34 +50,45 @@ public class PetChanceTrackerPlugin extends Plugin
 	private PetChanceTrackerPanel panel;
 	private NavigationButton navButton;
 
+	private List<PetRollTrackable> skills;
+
+	/* A list of everything that needs registering/unregistering with the event bus. This includes each skill class
+	   and their standalone source trackers (each is a separate object with its own @Subscribe methods that isn't
+	   picked up by registering the skill class alone)
+	 */
+	private List<Object> eventSubscribers;
+
     @Override
 	protected void startUp() throws Exception
 	{
 		log.debug("Pet Chance Tracker started!");
-		woodcutting.loadCounts();
-		eventBus.register(woodcutting);
+
+		skills = List.of(woodcutting, fishing);
+
+		eventSubscribers = new ArrayList<>();
+		for (PetRollTrackable skill : skills) {
+			eventSubscribers.add(skill);
+			eventSubscribers.add(skill.getSourceTracker());
+		}
+
+		// Register everything in need of registering
+		eventSubscribers.forEach(eventBus::register);
+
 		overlayManager.add(overlay);
-		clientToolbar.addNavigation(navButton);
 
 		if (configManager.getRSProfileKey() != null)
 		{
-			woodcutting.loadCounts();
+			skills.forEach(PetRollTrackable::loadCounts);
 		}
 
-		panel = new PetChanceTrackerPanel(woodcutting);
+		// Add side panel
+		panel = new PetChanceTrackerPanel(skills);
 		panel.refresh();
 
-		woodcutting.addCountsChangedListener(() -> SwingUtilities.invokeLater(panel::refresh));
+		skills.forEach(skill ->
+				skill.addCountsChangedListener(() -> SwingUtilities.invokeLater(panel::refresh)));
 
-		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
-
-		navButton = NavigationButton.builder()
-				.tooltip("Pet Chance Tracker")
-				.icon(icon)
-				.priority(5)
-				.panel(panel)
-				.build();
-
+		navButton = createNavButton();
 		clientToolbar.addNavigation(navButton);
 	}
 
@@ -92,19 +96,29 @@ public class PetChanceTrackerPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		log.debug("Pet Chance Tracker stopped!");
-		eventBus.unregister(woodcutting);
+
+		// Unregister everything in need of unregistering
+		eventSubscribers.forEach(eventBus::unregister);
+
+		// Remove overlay and side panel
 		overlayManager.remove(overlay);
+
+		if (navButton != null) {
+			clientToolbar.removeNavigation(navButton);
+		}
 	}
 
-	/*
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private NavigationButton createNavButton() throws java.io.IOException
 	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
-		}
-	}*/
+		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+
+		return NavigationButton.builder()
+				.tooltip("Pet Chance Tracker")
+				.icon(icon)
+				.priority(5)
+				.panel(panel)
+				.build();
+	}
 
 	@Provides
 	PetChanceTrackerConfig provideConfig(ConfigManager configManager)
