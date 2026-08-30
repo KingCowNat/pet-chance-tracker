@@ -1,10 +1,7 @@
 package com.petchancetracker.skills;
 
 import com.google.gson.Gson;
-import com.petchancetracker.utils.PersistentCounts;
-import com.petchancetracker.utils.PetRollProbabilityCalculator;
-import com.petchancetracker.utils.PetRollSourceTracker;
-import com.petchancetracker.utils.TargetInteractionTracker;
+import com.petchancetracker.utils.*;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -16,13 +13,15 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.RuneScapeProfileChanged;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import java.util.*;
 import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
 
+@Singleton
 @Slf4j
-public class Woodcutting {
+public class Woodcutting implements PetRollTrackable {
     private static final String CONFIG_GROUP = "petchancetracker";
     private static final String CONFIG_KEY = "woodcuttingCountsByLevel";
 
@@ -126,10 +125,6 @@ public class Woodcutting {
             new WorldArea(2752, 2933, 204, 11, 0)   // Kharazi Jungle entrance
     };
 
-    // Count listener to update side panel
-    public interface CountsChangedListener {
-        void onCountsChanged();
-    }
     private final List<CountsChangedListener> listeners = new ArrayList<>();
 
     private int prevXp;         // xp before the current action, used to detect stat changes
@@ -143,7 +138,10 @@ public class Woodcutting {
     @Inject
     private Gson gson;
 
-    @Getter
+    @Inject
+    private ActiveSkillTracker activeSkillTracker;
+    private TreeType lastTreeType;
+
     private PetRollSourceTracker<TreeType> treeTracker;
     private PersistentCounts<TreeType> counts;
 
@@ -164,7 +162,7 @@ public class Woodcutting {
     public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
         log.debug("onRuneScapeProfileChanged fired, profile={}", configManager.getRSProfileKey());
         getWoodcuttingXp();
-        loadTreeCounts();
+        loadCounts();
         notifyListeners();
     }
 
@@ -196,25 +194,50 @@ public class Woodcutting {
             return;
         }
 
+        // Register last skill and pet source
+        lastTreeType = treeType;
+        activeSkillTracker.setActiveSkill(getSkillType());
+
+        // Increment counts and update overlay/side panel
         int level = client.getRealSkillLevel(Skill.WOODCUTTING);
         counts.increment(level, treeType);
         notifyListeners();
     }
 
-    public void loadTreeCounts() { counts.load(); }
-    public Map<TreeType, Integer> getTotalTreeCounts() { return counts.getTotalCounts(); }
+    @Override
+    public SkillType getSkillType() { return SkillType.WOODCUTTING; }
 
+    @Override
+    public void loadCounts() { counts.load(); }
+
+    @Override
+    public Map<String, Integer> getFormattedTotalCounts() {
+        Map<TreeType, Integer> totals = counts.getTotalCounts();
+        Map<String, Integer> formatted = new LinkedHashMap<>();
+        for (TreeType type : TreeType.values()) {
+            formatted.put(DisplayNames.format(type), totals.getOrDefault(type, 0));
+        }
+        return formatted;
+    }
+
+    @Override
     public double getOverallProbability() {
         return PetRollProbabilityCalculator.calculateProbability(counts.getCountsByLevel(), DROP_RATES);
     }
 
-    public void addCountsChangedListener(CountsChangedListener listener) {
-        listeners.add(listener);
-    }
+    @Override
+    public String getLastSourceName() { return DisplayNames.format(lastTreeType); }
 
-    private void getWoodcuttingXp() {
-        prevXp = client.getSkillExperience(Skill.WOODCUTTING);
-    }
+    @Override
+    public int getLastSourceCount() { return lastTreeType == null ? 0 : counts.getTotalCount(lastTreeType); }
+
+    @Override
+    public Object getSourceTracker() { return treeTracker; }
+
+    @Override
+    public void addCountsChangedListener(CountsChangedListener listener) { listeners.add(listener); }
+
+    private void getWoodcuttingXp() { prevXp = client.getSkillExperience(Skill.WOODCUTTING); }
 
     private void notifyListeners() {
         for (CountsChangedListener listener : listeners) {
