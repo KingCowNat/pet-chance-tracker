@@ -55,10 +55,13 @@ public class PersistentCounts<T extends Enum<T>> {
                 TypeToken.getParameterized(Map.class, enumClass, Integer.class).getType()).getType();
 
         try {
-
-
             Map<Integer, Map<T, Integer>> saved = gson.fromJson(json, type);
             if (saved != null) {
+                // Guard against null keys sneaking into the persistent counts
+                for (Map.Entry<Integer, Map<T, Integer>> levelEntry : saved.entrySet()) {
+                    Map<T, Integer> levelCounts = levelEntry.getValue();
+                    levelCounts.entrySet().removeIf(e -> e.getKey() == null);
+                }
                 countsByLevel.putAll(saved);
             }
         } catch (Exception e) {
