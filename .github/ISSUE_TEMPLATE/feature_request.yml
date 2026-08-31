@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a new skill, source, or enhancement for Pet Chance Tracker
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Goal:** capture enough detail to scope and implement the request.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Request type
+      options:
+        - New skill support (e.g. Mining, Hunter)
+        - New source within an existing skill (e.g. a new tree/fish/minigame)
+        - Drop rate correction
+        - Overlay / side panel enhancement
+        - Config option
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences — what would you like added or changed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this would help
+      description: What's the use case, or what's currently missing/wrong without it?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Screenshots, wiki links, or anything else relevant.
+    validations:
+      required: false

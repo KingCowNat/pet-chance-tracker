@@ -1,0 +1,134 @@
+name: Bug report
+description: Report unexpected behavior or a regression in Pet Chance Tracker
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Goal:** capture enough context to reproduce and fix the issue quickly.
+        Use **one issue per bug**; split unrelated problems.
+
+        If this is about incorrect drop rates, missing pet rolls, or a source not being
+        detected, debug logs are almost always the fastest way to diagnose it.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 — plugin crashes or fails to load
+        - P1 — counts/probability wrong, or a source isn't tracked at all
+        - P2 — minor / cosmetic (overlay, panel display)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: What is the problem related to?
+      options:
+        - Woodcutting tracking
+        - Fishing tracking
+        - Fishing Trawler
+        - Shark lures
+        - Aerial fishing
+        - Probability calculation
+        - Persistence / saved counts
+        - Overlay
+        - Side panel
+        - Config
+        - Eligibility (region/area restrictions)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe what went wrong in one sentence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+      placeholder: |
+        Expected: …
+        Actual: …
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Ordered steps. Include what you were doing in-game (e.g. "chopping willow trees at level 60", "using 5 shark lures"). Leave blank if intermittent.
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: false
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      options:
+        - Always
+        - Intermittent
+        - Seen once
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gamemode
+    attributes:
+      label: Gamemode
+      description: Relevant for region-based eligibility and RS-profile-scoped persistence bugs.
+      options:
+        - Main game
+        - Deadman Mode
+        - Leagues / seasonal
+        - Quest Speedrunning
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: location
+    attributes:
+      label: In-game location
+      description: Where you were when this happened? Relevant for eligibility/region bugs.
+    validations:
+      required: false
+
+  - type: textarea
+    id: system
+    attributes:
+      label: System
+      description: RuneLite client type and plugin version, if known.
+      placeholder: |
+        RuneLite client: (official / Hub sideload / other)
+        Plugin version or commit:
+        OS:
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug logs / screenshots
+      description: |
+        If possible, paste any relevant RuneLite debug log output. Enable debug
+        logging via [Runelite Configuration](https://github.com/runelite/runelite/wiki/RuneLite-Launcher-Configuration)
+        by adding `--debug` in the "Client arguments".
+        
+        For UI related bugs, please provide any screenshots / videos that will help explain the problem.
+      render: shell
+    validations:
+      required: false
