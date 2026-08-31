@@ -63,7 +63,7 @@ public class PetChanceTrackerPlugin extends Plugin
 	{
 		log.debug("Pet Chance Tracker started!");
 
-		skills = List.of(woodcutting, fishing);
+		skills = List.of(fishing, woodcutting);
 
 		eventSubscribers = new ArrayList<>();
 		for (PetRollTrackable skill : skills) {
