@@ -57,6 +57,8 @@ public class ChatMessageTracker<T extends Enum<T>> implements PetRollSourceTrack
 
     @Override
     public T getCurrentSource() {
-        return currentSource;
+        T source = currentSource;
+        currentSource = null;
+        return source;
     }
 }

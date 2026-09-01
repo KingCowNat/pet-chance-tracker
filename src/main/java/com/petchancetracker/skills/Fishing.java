@@ -2,7 +2,6 @@ package com.petchancetracker.skills;
 
 import com.google.gson.Gson;
 import com.petchancetracker.utils.*;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.coords.WorldArea;
@@ -32,8 +31,8 @@ public class Fishing implements PetRollTrackable {
     private static final String CONFIG_KEY = "fishingCountsByLevel";
 
     // Regex to find the fish caught from the ChatMessage event
-    private static final Pattern FISH_CAUGHT_PATTERN = Pattern.compile("^You catch (?:an?|some|\\d*) ([a-zA-Z ]+)[.!]");
-
+    private static final Pattern FISH_CAUGHT_PATTERN =
+            Pattern.compile("^You catch (?:an?|some|two|three|four|five|six|seven|\\d*) ([a-zA-Z ]+)[.!]");
     // Fishing Trawler regex
     private static final Pattern TRAWLER_CATCH_PATTERN =
             Pattern.compile("^You caught (\\d+) fish(?:, but the .*? diary boosted the catch to (\\d+))?.*$");
@@ -145,29 +144,29 @@ public class Fishing implements PetRollTrackable {
             entry("raw anchovies", FishType.ANCHOVY),
             entry("anglerfish", FishType.ANGLERFISH),
             entry("raw bass", FishType.BASS),
-            //entry("", FishType.BLUEFIN),                      // Sailing
-            //entry("", FishType.BREAM),                        // Moons of Peril
+            entry("bluefin", FishType.BLUEFIN),                      // Sailing
+            entry("bream", FishType.BREAM),                        // Moons of Peril
             entry("raw catfish", FishType.CATFISH),
             entry("raw cave eel", FishType.CAVE_EEL),
             entry("raw cavefish", FishType.CAVEFISH),
             entry("raw cod", FishType.COD),
             entry("dark crab", FishType.DARK_CRAB),
-            //entry("raw ", FishType.GIANT_KRILL),              // Sailing
+            entry("giant krill", FishType.GIANT_KRILL),              // Sailing
             entry("raw guppy", FishType.GUPPY),
-            //entry("raw ", FishType.HADDOCK),                  // Sailing
-            //entry("raw ", FishType.HALIBUT),                  // Sailing
+            entry("haddock", FishType.HADDOCK),                  // Sailing
+            entry("halibut", FishType.HALIBUT),                  // Sailing
             entry("raw herring", FishType.HERRING),
             entry("infernal eel", FishType.INFERNAL_EEL),
-            //entry("raw ", FishType.JUMBO_SQUID),              // Sailing
+            entry("raw jumbo squid", FishType.JUMBO_SQUID),              // Sailing
             entry("karambwan", FishType.KARAMBWAN),
             entry("karambwanji", FishType.KARAMBWANJI),
             entry("leaping salmon", FishType.LEAPING_SALMON),
             entry("leaping sturgeon", FishType.LEAPING_STURGEON),
             entry("leaping trout", FishType.LEAPING_TROUT),
-            //entry("", FishType.LEECHFIN),                     // Vampyrium
+            entry("leechfin", FishType.LEECHFIN),                     // Vampyrium
             entry("lobster", FishType.LOBSTER),
             entry("raw mackerel", FishType.MACKEREL),
-            //entry("raw ", FishType.MARLIN),                   // Sailing
+            entry("marlin", FishType.MARLIN),                   // Sailing
             entry("minnows", FishType.MINNOWS),
             entry("monkfish", FishType.MONKFISH),
             entry("pike", FishType.PIKE),
@@ -178,11 +177,11 @@ public class Fishing implements PetRollTrackable {
             entry("shark", FishType.SHARK),
             entry("raw shrimps", FishType.SHRIMP),
             entry("raw swordfish", FishType.SWORDFISH),
-            //entry("raw ", FishType.SWORDTIP_SQUID),           // Sailing
+            entry("raw swordtip squid", FishType.SWORDTIP_SQUID),           // Sailing
             entry("raw tetra", FishType.TETRA),
             entry("raw trout", FishType.TROUT),
-            entry("raw tuna", FishType.TUNA)
-            //entry("raw ", FishType.YELLOWFIN)                // Sailing
+            entry("raw tuna", FishType.TUNA),
+            entry("yellowfin", FishType.YELLOWFIN)                // Sailing
     );
 
     private static final Map<Integer, FishType> SHARK_LURE_LOOKUP = Map.of(
@@ -234,12 +233,16 @@ public class Fishing implements PetRollTrackable {
     private PetRollSourceTracker<FishType> fishTracker;
     private PersistentCounts<FishType> counts;
     private ItemConsumptionTracker sharkLureTracker;
+    private ItemConsumptionTracker leechfinTracker;
+    private ItemConsumptionTracker breamTracker;
 
     @Inject
     private void initialise() {
         counts = new PersistentCounts<>(configManager, gson, CONFIG_GROUP, CONFIG_KEY, FishType.class);
         fishTracker = new ChatMessageTracker<>(client, FISH_CAUGHT_PATTERN, FISH_LOOKUP, INELIGIBLE_REGIONS, INELIGIBLE_AREAS);
         sharkLureTracker = new ItemConsumptionTracker(client, ItemID.SHARK_LURE);
+        leechfinTracker = new ItemConsumptionTracker(client, ItemID.LEECHFIN);
+        breamTracker = new ItemConsumptionTracker(client, ItemID.BREAM_FISH_RAW);
     }
 
     /**
@@ -288,7 +291,19 @@ public class Fishing implements PetRollTrackable {
         }
 
         if (fishType == null) {
-            return;
+            // Check if Leechfin or Bream counts increased. If neither, skip;
+            int leechfinCountChange = leechfinTracker.getChangeSinceLastCheck();
+
+            if (leechfinCountChange > 0) {
+                fishType = FishType.LEECHFIN;
+            } else {
+                int breamCountChange = breamTracker.getChangeSinceLastCheck();
+                if (breamCountChange > 0) {
+                    fishType = FishType.BREAM;
+                } else {
+                    return;
+                }
+            }
         }
 
         // Handle drop rate changes based on shark lures
@@ -298,7 +313,7 @@ public class Fishing implements PetRollTrackable {
 
             // If shark lures configured, check consumed count
             if (sharkLureSetting > 0) {
-                int consumed = sharkLureTracker.getConsumedSinceLastCheck();
+                int consumed = -(sharkLureTracker.getChangeSinceLastCheck());
 
                 if (consumed >= 0) {
                     fishType = SHARK_LURE_LOOKUP.getOrDefault(consumed, FishType.SHARK);
@@ -333,7 +348,9 @@ public class Fishing implements PetRollTrackable {
         if (event.getContainerId() != InventoryID.INV) {
             return;
         }
-        sharkLureTracker.getConsumedSinceLastCheck();
+        sharkLureTracker.syncBaseline();
+        leechfinTracker.syncBaseline();
+        breamTracker.syncBaseline();
     }
 
     @Subscribe

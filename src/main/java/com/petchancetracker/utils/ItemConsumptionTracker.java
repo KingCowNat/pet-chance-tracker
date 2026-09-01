@@ -28,18 +28,26 @@ public class ItemConsumptionTracker {
         for (Item item : inventory.getItems()) {
             if (item.getId() == itemId) {
                 count+= item.getQuantity();
-                log.debug("itemCount: count={}", count);
             }
         }
 
+        log.debug("itemCount: item={} count={}", itemId, count);
         return count;
     }
 
+    /**
+     * Sync the baseline count to the current count without reporting a change. Useful for whenever the inventory
+     * changes for a reason unrelated to the skill being tracked (eg. banking or dropping items) so that a stale
+     * count isn't used when a legitimate change related to the skill being tracked occurs.
+     */
+    public void syncBaseline() {
+        previousCount = getCurrentCount();
+    }
 
-    public int getConsumedSinceLastCheck() {
+    public int getChangeSinceLastCheck() {
         int currentCount = getCurrentCount();
-        int consumed = previousCount < 0 ? -1 : previousCount - currentCount;
+        int change = previousCount < 0 ? Integer.MIN_VALUE : currentCount - previousCount;
         previousCount = currentCount;
-        return consumed;
+        return change;
     }
 }
