@@ -39,36 +39,36 @@ class ItemConsumptionTrackerTest {
     @Test
     void firstCallReturnsMinusOneRegardlessOfCount() {
         mockInventory(11);
-        assertEquals(-1, tracker.getConsumedSinceLastCheck());
+        assertEquals(-1, tracker.getChangeSinceLastCheck());
     }
 
     @Test
     void secondCallComputesRealDiff() {
         mockInventory(11);
-        tracker.getConsumedSinceLastCheck(); // establishes baseline
+        tracker.getChangeSinceLastCheck(); // establishes baseline
 
         mockInventory(6);
-        assertEquals(5, tracker.getConsumedSinceLastCheck());
+        assertEquals(5, tracker.getChangeSinceLastCheck());
     }
 
     @Test
     void repeatedCallsEachDiffAgainstTheLastOne() {
         mockInventory(10);
-        tracker.getConsumedSinceLastCheck();
+        tracker.getChangeSinceLastCheck();
 
         mockInventory(5);
-        assertEquals(5, tracker.getConsumedSinceLastCheck());
+        assertEquals(5, tracker.getChangeSinceLastCheck());
 
         mockInventory(0);
-        assertEquals(5, tracker.getConsumedSinceLastCheck()); // exactly the "ran out on the last batch" case that broke earlier
+        assertEquals(5, tracker.getChangeSinceLastCheck()); // exactly the "ran out on the last batch" case that broke earlier
     }
 
     @Test
     void noChangeReturnsZero() {
         mockInventory(10);
-        tracker.getConsumedSinceLastCheck();
+        tracker.getChangeSinceLastCheck();
 
         mockInventory(10);
-        assertEquals(0, tracker.getConsumedSinceLastCheck());
+        assertEquals(0, tracker.getChangeSinceLastCheck());
     }
 }
