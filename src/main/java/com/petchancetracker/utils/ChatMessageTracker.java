@@ -32,6 +32,10 @@ public class ChatMessageTracker<T extends Enum<T>> implements PetRollSourceTrack
         this.ineligibleAreas = ineligibleAreas;
     }
 
+    /**
+     * Uses the {@link ChatMessage} event to determine the current pet source.
+     * @param event Any game or spam chat message
+     */
     @Subscribe
     public void onChatMessage(ChatMessage event) {
         if (event.getType() != ChatMessageType.SPAM

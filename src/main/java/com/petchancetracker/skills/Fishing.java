@@ -50,8 +50,7 @@ public class Fishing implements PetRollTrackable {
         CAVEFISH,
         COD,
         DARK_CRAB,
-        FISHING_TRAWLER_REGULAR,
-        FISHING_TRAWLER_MAX_CONTRIBUTION,
+        FISHING_TRAWLER,
         GIANT_KRILL,
         GUPPY,
         HADDOCK,
@@ -76,9 +75,9 @@ public class Fishing implements PetRollTrackable {
         SALMON,
         SARDINE,
         SHARK,
-        SHARK_LURE_1,
-        SHARK_LURE_3,
-        SHARK_LURE_5,
+        SHARK_WITH_1_LURE,
+        SHARK_WITH_3_LURES,
+        SHARK_WITH_5_LURES,
         SHRIMP,
         SWORDFISH,
         SWORDTIP_SQUID,
@@ -101,8 +100,6 @@ public class Fishing implements PetRollTrackable {
             entry(FishType.CAVEFISH, 300792),
             entry(FishType.COD, 1147827),               // Big net rate
             entry(FishType.DARK_CRAB, 149434),
-            entry(FishType.FISHING_TRAWLER_REGULAR, 5000),              // Static rate
-            entry(FishType.FISHING_TRAWLER_MAX_CONTRIBUTION, 2500),     // Static rate
             entry(FishType.GIANT_KRILL, 257770),
             entry(FishType.GUPPY, 820330),
             entry(FishType.HADDOCK, 247770),
@@ -127,9 +124,9 @@ public class Fishing implements PetRollTrackable {
             entry(FishType.SALMON, 923616),
             entry(FishType.SARDINE, 1056000),
             entry(FishType.SHARK, 82243),
-            entry(FishType.SHARK_LURE_1, 328972),
-            entry(FishType.SHARK_LURE_3, 411215),
-            entry(FishType.SHARK_LURE_5, 493458),
+            entry(FishType.SHARK_WITH_1_LURE, 328972),
+            entry(FishType.SHARK_WITH_3_LURES, 411215),
+            entry(FishType.SHARK_WITH_5_LURES, 493458),
             entry(FishType.SHRIMP, 870330),
             entry(FishType.SWORDFISH, 257770),
             entry(FishType.SWORDTIP_SQUID, 257770),
@@ -186,15 +183,13 @@ public class Fishing implements PetRollTrackable {
 
     private static final Map<Integer, FishType> SHARK_LURE_LOOKUP = Map.of(
             0, FishType.SHARK,
-            1, FishType.SHARK_LURE_1,
-            3, FishType.SHARK_LURE_3,
-            5, FishType.SHARK_LURE_5
+            1, FishType.SHARK_WITH_1_LURE,
+            3, FishType.SHARK_WITH_3_LURES,
+            5, FishType.SHARK_WITH_5_LURES
     );
 
     // Used to exclude counts from level scaling probability calculator
     private static final Set<FishType> STATIC_DROP_RATES = Set.of(
-            FishType.FISHING_TRAWLER_REGULAR,
-            FishType.FISHING_TRAWLER_MAX_CONTRIBUTION,
             FishType.MINNOWS
     );
 
@@ -212,8 +207,15 @@ public class Fishing implements PetRollTrackable {
     private static final int MOLCH_ISLAND_REGION_ID = 5432;
 
     // Fishing Trawler
+    private static final int MIN_TRAWLER_POINTS = 50;
+    private static final int MIN_TRAWLER_POINTS_RATE = 5000;
     private static final int MAX_TRAWLER_POINTS = 255;
-    private boolean maxTrawlerContribution = false;
+    private static final int MAX_TRAWLER_POINTS_RATE = 2500;
+    private static final double TRAWLER_RATE_SCALING = (double) (MAX_TRAWLER_POINTS_RATE - MIN_TRAWLER_POINTS_RATE) /
+            (MAX_TRAWLER_POINTS - MIN_TRAWLER_POINTS);
+
+    private int currentTrawlerPoints = 0;
+    private PersistentIntegerCounts trawlerCounts;
 
     private int prevXp;      // xp before the current action, used to detect stat changes
 
@@ -243,6 +245,7 @@ public class Fishing implements PetRollTrackable {
         sharkLureTracker = new ItemConsumptionTracker(client, ItemID.SHARK_LURE);
         leechfinTracker = new ItemConsumptionTracker(client, ItemID.LEECHFIN);
         breamTracker = new ItemConsumptionTracker(client, ItemID.BREAM_FISH_RAW);
+        trawlerCounts = new PersistentIntegerCounts(configManager, gson, CONFIG_GROUP, "fishingTrawlerCountsByPoints");
     }
 
     /**
@@ -331,18 +334,24 @@ public class Fishing implements PetRollTrackable {
         notifyListeners();
     }
 
+    /**
+     * Uses the {@link VarbitChanged} event to track Fishing Trawler points contribution
+     * @param event An event fired when the Varbit for fishing trawler points changes
+     */
     @Subscribe
     public void onVarbitChanged(VarbitChanged event) {
         if (event.getVarbitId() != VarbitID.TRAWLER_ACTIVITY) {
             return;
         }
 
-        if (event.getValue() >= MAX_TRAWLER_POINTS) {
-            maxTrawlerContribution = true;
-        }
+        currentTrawlerPoints = event.getValue();
     }
 
-    // Whenever the player's inventory is updated, refresh lure count
+    /**
+     * Uses the {@link ItemContainerChanged} event to update the counts of shark lure, leechfin, and bream whenever the
+     * player's inventory changes (eg. banking or dropping items) so that a stale count isn't used for detecting changes
+     * @param event An event fired whenever the stack size of an item in the player's inventory changes
+     */
     @Subscribe
     public void onItemContainerChanged(ItemContainerChanged event) {
         if (event.getContainerId() != InventoryID.INV) {
@@ -353,6 +362,10 @@ public class Fishing implements PetRollTrackable {
         breamTracker.syncBaseline();
     }
 
+    /**
+     * Uses the {@link ChatMessage} event to track if the user is aerial fishing or playing the Fishing Trawler minigame
+     * @param event Any game or spam chat message
+     */
     @Subscribe
     public void onChatMessage(ChatMessage event) {
         if (event.getType() != ChatMessageType.SPAM
@@ -374,37 +387,42 @@ public class Fishing implements PetRollTrackable {
             isAerialFishing = false;
         }
 
+        // Fishing Trawler check
         Matcher matcher = TRAWLER_CATCH_PATTERN.matcher(event.getMessage());
         if (!matcher.find()) {
             return;
         }
 
-        int level = client.getRealSkillLevel(Skill.FISHING);
+        lastFishType = FishType.FISHING_TRAWLER;
+        trawlerCounts.increment(currentTrawlerPoints);
+        activeSkillTracker.setActiveSkill(getSkillType());
+    }
 
-        if (maxTrawlerContribution) {
-            lastFishType = FishType.FISHING_TRAWLER_MAX_CONTRIBUTION;
-            counts.increment(level, FishType.FISHING_TRAWLER_MAX_CONTRIBUTION);
-        } else {
-            lastFishType = FishType.FISHING_TRAWLER_REGULAR;
-            counts.increment(level, FishType.FISHING_TRAWLER_REGULAR);
+    /**
+     * Calculates the total chance of rolling the fishing pet from all games of Fishing Trawler based on the player's
+     * contribution points
+     * @return The probability of rolling the fishing pet from all games of Fishing Trawler that the player has played
+     */
+    public double getTrawlerProbability() {
+        double probability = 0;
+
+        for (Map.Entry<Integer, Integer> entry : trawlerCounts.getCountsByBucket().entrySet()) {
+            int points = entry.getKey();
+            int gamesAtThisPointsCount = entry.getValue();
+
+            int rate = getTrawlerRateForPoints(points);
+            double chanceAtThisPoints = 1 - Math.pow(1 - 1.0 / rate, gamesAtThisPointsCount);
+
+            probability = 1 - (1 - probability) * (1 - chanceAtThisPoints);
         }
 
-        activeSkillTracker.setActiveSkill(getSkillType());
-
-        // Reset for next round
-        maxTrawlerContribution = false;
+        return probability;
     }
 
-    // NEEDS UPDATING - DROP RATE SCALES LINEARLY BETWEEN MINIMUM AND MAXIMUM CONTRIBUTION INSTEAD OF A JUMP
-    public double getTrawlerProbability() {
-        double chanceFromNormal = 1 - Math.pow(1 - 1.0 / DROP_RATES.get(FishType.FISHING_TRAWLER_REGULAR),
-                counts.getTotalCount(FishType.FISHING_TRAWLER_REGULAR));
-        double chanceFromMax = 1 - Math.pow(1 - 1.0 / DROP_RATES.get(FishType.FISHING_TRAWLER_MAX_CONTRIBUTION),
-                counts.getTotalCount(FishType.FISHING_TRAWLER_MAX_CONTRIBUTION));
-
-        return 1 - (1 - chanceFromNormal) * (1 - chanceFromMax);
-    }
-
+    /**
+     * Calculates the total chance of the player rolling the fishing pet from minnows
+     * @return The probability of rolling the fishing pet from minnows
+     */
     public double getMinnowProbability() {
         return 1 - Math.pow(1 - 1.0 / DROP_RATES.get(FishType.MINNOWS), counts.getTotalCount(FishType.MINNOWS));
     }
@@ -415,18 +433,30 @@ public class Fishing implements PetRollTrackable {
     }
 
     @Override
-    public void loadCounts() { counts.load(); }
+    public void loadCounts() {
+        counts.load();
+        trawlerCounts.load();
+    }
 
     @Override
     public Map<String, Integer> getFormattedTotalCounts() {
         Map<Fishing.FishType, Integer> totals = counts.getTotalCounts();
         Map<String, Integer> formatted = new LinkedHashMap<>();
         for (Fishing.FishType type : Fishing.FishType.values()) {
-            formatted.put(DisplayNames.format(type), totals.getOrDefault(type, 0));
+            if (type == FishType.FISHING_TRAWLER) {
+                formatted.put(DisplayNames.format(type), trawlerCounts.getTotalCount());
+            } else {
+                formatted.put(DisplayNames.format(type), totals.getOrDefault(type, 0));
+            }
         }
         return formatted;
     }
 
+    /**
+     * Calculates the total chance of the player receiving the fishing pet from all sources, including Fishing Trawler
+     * and minnows
+     * @return The probability of rolling the fishing pet from all sources
+     */
     @Override
     public double getOverallProbability() {
         double mainProbability = PetRollProbabilityCalculator.calculateProbability(counts.getCountsByLevel(),
@@ -454,6 +484,18 @@ public class Fishing implements PetRollTrackable {
     @Override
     public void addCountsChangedListener(CountsChangedListener listener) {
         listeners.add(listener);
+    }
+
+    /**
+     * Calculates the drop rate of the fishing pet for a specific value of Fishing Trawler contribution points
+     * @param points Fishing Trawler contribution points for a specific game
+     * @return The drop rate of the fishing pet for the given contribution points
+     */
+    private int getTrawlerRateForPoints(int points) {
+        if (points == MIN_TRAWLER_POINTS) { return MIN_TRAWLER_POINTS_RATE; }
+        if (points == MAX_TRAWLER_POINTS) { return MAX_TRAWLER_POINTS_RATE; }
+
+        return Math.toIntExact(Math.round(MIN_TRAWLER_POINTS + (points - MIN_TRAWLER_POINTS) * TRAWLER_RATE_SCALING));
     }
 
     private void getFishingXp() {
