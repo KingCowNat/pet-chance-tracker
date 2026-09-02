@@ -35,7 +35,7 @@ public class TargetInteractionTracker<T extends Enum<T>> implements PetRollSourc
     }
 
     /**
-     * Uses interactions with an object to determine the current pet source.
+     * Uses interactions with an object via the {@link MenuOptionClicked} event to determine the current pet source.
      * @param event Any left click interaction.
      */
     @Subscribe

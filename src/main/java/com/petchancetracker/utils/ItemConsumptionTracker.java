@@ -18,6 +18,10 @@ public class ItemConsumptionTracker {
         this.itemId = itemId;
     }
 
+    /**
+     * Gets the current count of a specific ItemID in the player's inventory
+     * @return Count of a specific ItemID
+     */
     public int getCurrentCount() {
         ItemContainer inventory = client.getItemContainer(InventoryID.INV);
         if (inventory == null) {
@@ -44,6 +48,10 @@ public class ItemConsumptionTracker {
         previousCount = getCurrentCount();
     }
 
+    /**
+     * Gets the change in count of a specific ItemID in the player's inventory since the last count was computed
+     * @return Change in count of a specific ItemID
+     */
     public int getChangeSinceLastCheck() {
         int currentCount = getCurrentCount();
         int change = previousCount < 0 ? Integer.MIN_VALUE : currentCount - previousCount;
